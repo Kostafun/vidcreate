@@ -8,8 +8,14 @@ import express from 'express';
 
     const app = express();
     const upload = multer({ dest: 'uploads/' });
+    const voicesDir = 'voices';
+    const videosDir = 'videos';
     const resultsDir = 'results';
-    if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
+    
+    // Create directories if they don't exist
+    [voicesDir, videosDir, resultsDir].forEach(dir => {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    });
 
     const wss = new WebSocketServer({ port: 3002 });
     const clients = new Set();
@@ -21,6 +27,8 @@ import express from 'express';
 
     app.use(cors());
     app.use(express.json());
+    app.use('/voices', express.static(voicesDir));
+    app.use('/videos', express.static(videosDir));
     app.use('/results', express.static(resultsDir));
 
     const ELEVENLABS_API_KEY = 'your-api-key';
@@ -29,31 +37,29 @@ import express from 'express';
       voice2: 'voice-id-2'
     };
 
-    const broadcastProgress = (progress) => {
-      clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: 'progress', data: progress }));
+    // Cleanup old files
+    const cleanupOldFiles = (dir, maxAge) => {
+      const files = fs.readdirSync(dir);
+      const now = Date.now();
+      
+      files.forEach(file => {
+        const filePath = path.join(dir, file);
+        const stat = fs.statSync(filePath);
+        if (now - stat.mtimeMs > maxAge) {
+          fs.unlinkSync(filePath);
         }
       });
     };
 
-    const broadcastResult = (filename) => {
-      clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: 'result', data: filename }));
-        }
-      });
-    };
+    // Cleanup old files every hour
+    setInterval(() => {
+      cleanupOldFiles(voicesDir, 7 * 24 * 60 * 60 * 1000); // 1 week
+    }, 60 * 60 * 1000);
 
-    app.post('/api/process', upload.fields([
-      { name: 'video', maxCount: 1 }
-    ]), async (req, res) => {
+    app.post('/api/generate-voice', async (req, res) => {
       try {
         const { text, voice } = req.body;
-        const videoPath = req.files.video[0].path;
         
-        // Generate audio
-        broadcastProgress('Generating audio...');
         const audioResponse = await axios.post(
           `https://api.elevenlabs.io/v1/text-to-speech/${VOICES[voice]}`,
           { text },
@@ -66,25 +72,63 @@ import express from 'express';
           }
         );
 
-        const audioPath = path.join('uploads', `${Date.now()}.mp3`);
-        fs.writeFileSync(audioPath, audioResponse.data);
+        const filename = `voice_${Date.now()}.mp3`;
+        const filePath = path.join(voicesDir, filename);
+        fs.writeFileSync(filePath, audioResponse.data);
 
-        // Process video
-        const outputFilename = `output_${Date.now()}.mp4`;
-        const outputPath = path.join(resultsDir, outputFilename);
+        res.json({ success: true, filename });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send('Error generating voice');
+      }
+    });
+
+    app.post('/api/upload-video', upload.single('video'), (req, res) => {
+      try {
+        const filename = `video_${Date.now()}${path.extname(req.file.originalname)}`;
+        const newPath = path.join(videosDir, filename);
+        fs.renameSync(req.file.path, newPath);
+        res.json({ success: true, filename });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send('Error uploading video');
+      }
+    });
+
+    app.post('/api/process-video', async (req, res) => {
+      try {
+        const { voiceFile, videoFile } = req.body;
         
+        const voicePath = path.join(voicesDir, voiceFile);
+        const videoPath = path.join(videosDir, videoFile);
+        const outputFilename = `result_${Date.now()}.mp4`;
+        const outputPath = path.join(resultsDir, outputFilename);
+
         // Simulate long-running process
         setTimeout(() => {
           // In real implementation, replace this with actual LatentSync command
           fs.copyFileSync(videoPath, outputPath);
-          broadcastResult(outputFilename);
         }, 10000); // 10 seconds for demo
 
-        res.json({ success: true });
+        res.json({ success: true, filename: outputFilename });
       } catch (error) {
         console.error(error);
-        res.status(500).send('An error occurred');
+        res.status(500).send('Error processing video');
       }
+    });
+
+    app.get('/api/voices', (req, res) => {
+      const files = fs.readdirSync(voicesDir)
+        .filter(f => f.endsWith('.mp3'))
+        .map(f => `/voices/${f}`);
+      res.json(files);
+    });
+
+    app.get('/api/videos', (req, res) => {
+      const files = fs.readdirSync(videosDir)
+        .filter(f => ['.mp4', '.mov', '.avi'].includes(path.extname(f)))
+        .map(f => `/videos/${f}`);
+      res.json(files);
     });
 
     app.get('/api/results', (req, res) => {

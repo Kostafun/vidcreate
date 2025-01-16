@@ -3,48 +3,66 @@ import React, { useState, useEffect } from 'react';
 
     function App() {
       const [text, setText] = useState('');
-      const [video, setVideo] = useState(null);
       const [voice, setVoice] = useState('voice1');
-      const [loading, setLoading] = useState(false);
-      const [progress, setProgress] = useState('');
+      const [voices, setVoices] = useState([]);
+      const [videos, setVideos] = useState([]);
       const [results, setResults] = useState([]);
-      const [ws, setWs] = useState(null);
+      const [selectedVoice, setSelectedVoice] = useState('');
+      const [selectedVideo, setSelectedVideo] = useState('');
+      const [loading, setLoading] = useState(false);
 
       useEffect(() => {
-        // Connect to WebSocket
-        const socket = new WebSocket('ws://localhost:3002');
-        socket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'progress') {
-            setProgress(data.data);
-          } else if (data.type === 'result') {
-            setResults(prev => [`/results/${data.data}`, ...prev]);
-          }
-        };
-        setWs(socket);
-
-        // Load existing results
+        // Load existing files
+        axios.get('/api/voices').then(res => setVoices(res.data));
+        axios.get('/api/videos').then(res => setVideos(res.data));
         axios.get('/api/results').then(res => setResults(res.data));
-
-        return () => socket.close();
       }, []);
 
-      const handleSubmit = async (e) => {
-        e.preventDefault();
+      const handleGenerateVoice = async () => {
         setLoading(true);
-        setProgress('Starting...');
+        try {
+          const response = await axios.post('/api/generate-voice', {
+            text,
+            voice
+          });
+          setVoices(prev => [`/voices/${response.data.filename}`, ...prev]);
+        } catch (error) {
+          console.error(error);
+          alert('Error generating voice');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleUploadVideo = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
         const formData = new FormData();
-        formData.append('video', video);
-        formData.append('text', text);
-        formData.append('voice', voice);
+        formData.append('video', file);
 
         try {
-          await axios.post('/api/process', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
+          const response = await axios.post('/api/upload-video', formData);
+          setVideos(prev => [`/videos/${response.data.filename}`, ...prev]);
+        } catch (error) {
+          console.error(error);
+          alert('Error uploading video');
+        }
+      };
+
+      const handleProcessVideo = async () => {
+        if (!selectedVoice || !selectedVideo) {
+          alert('Please select both a voice and a video');
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const response = await axios.post('/api/process-video', {
+            voiceFile: selectedVoice.split('/').pop(),
+            videoFile: selectedVideo.split('/').pop()
           });
+          setResults(prev => [`/results/${response.data.filename}`, ...prev]);
         } catch (error) {
           console.error(error);
           alert('Error processing video');
@@ -56,38 +74,83 @@ import React, { useState, useEffect } from 'react';
       return (
         <div className="container">
           <h1>Video Voice Sync</h1>
-          <form onSubmit={handleSubmit}>
+
+          <div className="section">
+            <h2>Generate Voice</h2>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Enter text..."
               required
             />
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(e) => setVideo(e.target.files[0])}
-              required
-            />
             <select value={voice} onChange={(e) => setVoice(e.target.value)}>
               <option value="voice1">Voice 1</option>
               <option value="voice2">Voice 2</option>
             </select>
-            <button type="submit" disabled={loading}>
-              {loading ? 'Processing...' : 'Generate Video'}
+            <button onClick={handleGenerateVoice} disabled={loading || !text}>
+              {loading ? 'Generating...' : 'Generate Voice'}
             </button>
-          </form>
+          </div>
 
-          {progress && <div className="progress">{progress}</div>}
+          <div className="section">
+            <h2>Upload Video</h2>
+            <input
+              type="file"
+              accept="video/*"
+              onChange={handleUploadVideo}
+              disabled={loading}
+            />
+          </div>
 
-          <div className="results">
-            <h2>Processed Videos</h2>
-            {results.map((url, i) => (
-              <div key={i}>
-                <video controls src={url} style={{ width: '100%' }} />
-                <a href={url} download>Download</a>
-              </div>
-            ))}
+          <div className="section">
+            <h2>Available Voices</h2>
+            <div className="file-list">
+              {voices.map((voice, i) => (
+                <div key={i} className="file-item">
+                  <audio controls src={voice} />
+                  <button onClick={() => setSelectedVoice(voice)}>
+                    {selectedVoice === voice ? 'Selected' : 'Select'}
+                  </button>
+                  <a href={voice} download>Download</a>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="section">
+            <h2>Available Videos</h2>
+            <div className="file-list">
+              {videos.map((video, i) => (
+                <div key={i} className="file-item">
+                  <video controls src={video} style={{ width: '200px' }} />
+                  <button onClick={() => setSelectedVideo(video)}>
+                    {selectedVideo === video ? 'Selected' : 'Select'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="section">
+            <h2>Process Video</h2>
+            <button 
+              onClick={handleProcessVideo} 
+              disabled={loading || !selectedVoice || !selectedVideo}
+            >
+              {loading ? 'Processing...' : 'Create Final Video'}
+            </button>
+          </div>
+
+          <div className="section">
+            <h2>Results</h2>
+            <div className="file-list">
+              {results.map((result, i) => (
+                <div key={i} className="file-item">
+                  <video controls src={result} style={{ width: '200px' }} />
+                  <a href={result} download>Download</a>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
