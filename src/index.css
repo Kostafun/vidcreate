@@ -1,0 +1,26 @@
+/* Add styles for progress and results */
+    .progress {
+      margin: 20px 0;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 4px;
+    }
+    
+    .results {
+      margin-top: 40px;
+    }
+    
+    .results h2 {
+      margin-bottom: 20px;
+    }
+    
+    .results video {
+      margin-bottom: 10px;
+    }
+    
+    .results a {
+      display: block;
+      margin-bottom: 20px;
+      color: #007bff;
+      text-decoration: none;
+    }
