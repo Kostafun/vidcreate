@@ -110,20 +110,30 @@ import express from 'express';
         const videoPath = path.join(__dirname, videosDir, videoFile);
         const outputFilename = `result_${Date.now()}.mp4`;
         const outputPath = path.join(__dirname, resultsDir, outputFilename);
-
+        const logPath = path.join(__dirname,  'latentsync.log');
 
         const latentSync = spawn('./latentsync.sh', [
           '-a', voicePath,
           '-v', videoPath,
           '-o', outputPath,
-          // Add other LatentSync options as needed
+          '-l', logPath
         ]);
+        
+        const sendOutputToClients = () => {
+          const output = fs.readFileSync(logPath, 'utf-8');
+          clients.forEach(client => {
+            if (client.readyState === wss.OPEN) {
+              client.send(output);
+            }
+          });
+        };
+        const outputInterval = setInterval(sendOutputToClients, 1000);
 
         latentSync.stdout.on('data', (data) => {
           console.log(`LatentSync stdout: ${data}`);
           // Send stdout data to all connected WebSocket clients
           clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client.readyState === wss.OPEN) {
               client.send(data.toString());
             }
           });
@@ -135,12 +145,15 @@ import express from 'express';
 
         latentSync.on('close', (code) => {
           console.log(`LatentSync process exited with code ${code}`);
+          clearInterval(outputInterval);
+          sendOutputToClients();
           // Send a message to indicate the process has finished
           clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client.readyState === wss.OPEN) {
               client.send('LatentSync process finished');
             }
           });
+          res.json({ success: true, filename: outputFilename });
         });
 
         // Simulate long-running process

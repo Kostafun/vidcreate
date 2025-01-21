@@ -10,12 +10,21 @@ import React, { useState, useEffect } from 'react';
       const [selectedVoice, setSelectedVoice] = useState('');
       const [selectedVideo, setSelectedVideo] = useState('');
       const [loading, setLoading] = useState(false);
+      const [showConsole, setShowConsole] = useState(false);
+      const [consoleOutput, setConsoleOutput] = useState([]);
 
       useEffect(() => {
         // Load existing files
         axios.get('/api/voices').then(res => setVoices(res.data));
         axios.get('/api/videos').then(res => setVideos(res.data));
         axios.get('/api/results').then(res => setResults(res.data));
+        const ws = new WebSocket('ws://localhost:3002');
+    
+        ws.onmessage = (event) => {
+          setConsoleOutput(prev => [...prev, ...event.data.split('\n')]);
+        };
+    
+        return () => ws.close();
       }, []);
 
       const handleGenerateVoice = async () => {
@@ -57,18 +66,21 @@ import React, { useState, useEffect } from 'react';
         }
 
         setLoading(true);
-        try {
-          const response = await axios.post('/api/process-video', {
-            voiceFile: selectedVoice.split('/').pop(),
-            videoFile: selectedVideo.split('/').pop()
-          });
-          setResults(prev => [`/data/results/${response.data.filename}`, ...prev]);
-        } catch (error) {
-          console.error(error);
-          alert('Error processing video');
-        } finally {
-          setLoading(false);
-        }
+        setShowConsole(true);
+        setConsoleOutput([]);
+        
+     try {
+      await axios.post('/api/process-video', {
+        voiceFile: selectedVoice.split('/').pop(),
+        videoFile: selectedVideo.split('/').pop()
+      });
+    } catch (error) {
+      console.error(error);
+      alert('Error processing video');
+    } finally {
+      setLoading(false);
+    }
+
       };
 
       return (
@@ -84,7 +96,8 @@ import React, { useState, useEffect } from 'react';
               required
             />
             <select value={voice} onChange={(e) => setVoice(e.target.value)}>
-              <option value="4tRn1lSkEn13EVTuqb0g">Seductive</option>
+              <option value="4tRn1lSkEn13EVTuqb0g">Angel</option>
+              <option value="aEO01A4wXwd1O8GPgGlF">Arabella Nakortah</option>
               <option value="pGAwIQNN9UjOkKxjAyGQ">Amelia</option>
             </select>
             <button onClick={handleGenerateVoice} disabled={loading || !text}>
@@ -152,6 +165,44 @@ import React, { useState, useEffect } from 'react';
               ))}
             </div>
           </div>
+          {showConsole && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          padding: '20px',
+          color: '#fff',
+          overflow: 'auto',
+          zIndex: 1000
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h2>Processing Console</h2>
+            <button onClick={() => setShowConsole(false)}>Close</button>
+          </div>
+          <pre style={{
+            backgroundColor: '#000',
+            padding: '10px',
+            borderRadius: '4px',
+            minHeight: '200px',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            {consoleOutput.map((line, i) => (
+              <div key={i} style={{ color: '#00ff00', marginBottom: '5px' }}>
+                {line}
+              </div>
+            ))}
+          </pre>
+        </div>
+      )}
         </div>
       );
     }
