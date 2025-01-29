@@ -59,9 +59,9 @@ import express from 'express';
     };
 
     // Cleanup old files every hour
-    setInterval(() => {
-      cleanupOldFiles(voicesDir, 7 * 24 * 60 * 60 * 1000); // 1 week
-    }, 60 * 60 * 1000);
+    // setInterval(() => {
+    //   cleanupOldFiles(voicesDir, 7 * 24 * 60 * 60 * 1000); // 1 week
+    // }, 60 * 60 * 1000);
 
     app.post('/api/generate-voice', async (req, res) => {
       try {
@@ -178,7 +178,7 @@ import express from 'express';
 
     app.get('/api/videos', (req, res) => {
       const files = fs.readdirSync(videosDir)
-        .filter(f => ['.mp4', '.mov', '.avi'].includes(path.extname(f)))
+        .filter(f => ['.mp4', '.mov', '.avi', '.mkv'].includes(path.extname(f)))
         .map(f => `/data/videos/${f}`);
       res.json(files);
     });
