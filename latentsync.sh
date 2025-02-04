@@ -6,6 +6,7 @@ while getopts ":v:a:o:l:" opt; do
     a) audio_path="$OPTARG";;
     o) video_out_path="$OPTARG";;
     l) log_path="$OPTARG";;
+    s) start_frame="$OPTARG";;
     \?) echo "Invalid option -$OPTARG" >&2;;
   esac
 done
@@ -20,4 +21,5 @@ python -m scripts.inference \
     --video_path "$video_path" \
     --audio_path "$audio_path" \
     --video_out_path "$video_out_path" \
+    --start_frame "$start_frame" \
     > "$log_path" 2>&1

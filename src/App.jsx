@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
       const [loading, setLoading] = useState(false);
       const [showConsole, setShowConsole] = useState(false);
       const [consoleOutput, setConsoleOutput] = useState([]);
+      const [startFrame, setStartFrame] = useState(0);
 
       useEffect(() => {
         // Load existing files
@@ -73,7 +74,7 @@ import React, { useState, useEffect } from 'react';
       await axios.post('/api/process-video', {
         voiceFile: selectedVoice.split('/').pop(),
         videoFile: selectedVideo.split('/').pop(),
-        startFrame: startFrame ? parseInt(startFrame, 10) : 0
+        startFrame: startFrame
       });
     } catch (error) {
       console.error(error);
@@ -150,7 +151,7 @@ import React, { useState, useEffect } from 'react';
             <input
               type="number"
               value={startFrame}
-              onChange={(e) => setStartFrame(e.target.value)}
+              onChange={(e) => setStartFrame(parseInt(e.target.value, 10))}
               placeholder="Start Frame"
             />
             <button 
