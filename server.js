@@ -104,7 +104,7 @@ import express from 'express';
 
     app.post('/api/process-video', async (req, res) => {
       try {
-        const { voiceFile, videoFile } = req.body;
+        const { voiceFile, videoFile, startFrame } = req.body;
         
         const voicePath = path.join(__dirname, voicesDir, voiceFile);
         const videoPath = path.join(__dirname, videosDir, videoFile);
@@ -116,8 +116,10 @@ import express from 'express';
           '-a', voicePath,
           '-v', videoPath,
           '-o', outputPath,
-          '-l', logPath
+          '-l', logPath,
+          '-s', startFrame
         ]);
+        
         
         const sendOutputToClients = () => {
           const output = fs.readFileSync(logPath, 'utf-8');

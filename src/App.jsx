@@ -72,7 +72,8 @@ import React, { useState, useEffect } from 'react';
      try {
       await axios.post('/api/process-video', {
         voiceFile: selectedVoice.split('/').pop(),
-        videoFile: selectedVideo.split('/').pop()
+        videoFile: selectedVideo.split('/').pop(),
+        startFrame: startFrame ? parseInt(startFrame, 10) : 0
       });
     } catch (error) {
       console.error(error);
@@ -146,6 +147,12 @@ import React, { useState, useEffect } from 'react';
 
           <div className="section">
             <h2>Process Video</h2>
+            <input
+              type="number"
+              value={startFrame}
+              onChange={(e) => setStartFrame(e.target.value)}
+              placeholder="Start Frame"
+            />
             <button 
               onClick={handleProcessVideo} 
               disabled={loading || !selectedVoice || !selectedVideo}
