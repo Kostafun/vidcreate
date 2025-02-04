@@ -24,7 +24,7 @@ import express from 'express';
       if (!fs.existsSync(dir)) fs.mkdirSync(dir);
     });
 
-    const wss = new WebSocketServer({ port: 3002 });
+    const wss = new WebSocketServer({ port: 3002, host: '0.0.0.0' });
     const clients = new Set();
 
     wss.on('connection', (ws) => {

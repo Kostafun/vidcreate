@@ -18,7 +18,7 @@ import React, { useState, useEffect } from 'react';
         axios.get('/api/voices').then(res => setVoices(res.data));
         axios.get('/api/videos').then(res => setVideos(res.data));
         axios.get('/api/results').then(res => setResults(res.data));
-        const ws = new WebSocket('ws://localhost:3002');
+        const ws = new WebSocket('ws://192.168.68.205:3002');
     
         ws.onmessage = (event) => {
           setConsoleOutput(prev => [...prev, ...event.data.split('\n')]);
