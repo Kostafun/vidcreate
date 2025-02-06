@@ -13,12 +13,10 @@ import React, { useState, useEffect } from 'react';
       const [showConsole, setShowConsole] = useState(false);
       const [consoleOutput, setConsoleOutput] = useState([]);
       const [startFrame, setStartFrame] = useState(0);
-
+      const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3003' : window.location.origin;
       useEffect(() => {
         // Load existing files
-        const baseUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3003' 
-        : window.location.origin;
+
         axios.get(`${baseUrl}/api/voices`).then(res => setVoices(res.data));
         axios.get(`${baseUrl}/api/videos`).then(res => setVideos(res.data));
         axios.get(`${baseUrl}/api/results`).then(res => setResults(res.data));
