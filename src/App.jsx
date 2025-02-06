@@ -16,10 +16,13 @@ import React, { useState, useEffect } from 'react';
 
       useEffect(() => {
         // Load existing files
-        axios.get('/api/voices').then(res => setVoices(res.data));
-        axios.get('/api/videos').then(res => setVideos(res.data));
-        axios.get('/api/results').then(res => setResults(res.data));
-        const ws = new WebSocket('ws://192.168.68.205:3002');
+        const baseUrl = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:3003' 
+        : window.location.origin;
+        axios.get(`${baseUrl}/api/voices`).then(res => setVoices(res.data));
+        axios.get(`${baseUrl}/api/videos`).then(res => setVideos(res.data));
+        axios.get(`${baseUrl}/api/results`).then(res => setResults(res.data));
+        const ws = new WebSocket(`${baseUrl}/ws`);
     
         ws.onmessage = (event) => {
           setConsoleOutput(prev => [...prev, ...event.data.split('\n')]);
@@ -31,7 +34,7 @@ import React, { useState, useEffect } from 'react';
       const handleGenerateVoice = async () => {
         setLoading(true);
         try {
-          const response = await axios.post('/api/generate-voice', {
+          const response = await axios.post(`${baseUrl}/api/generate-voice`, {
             text,
             voice
           });
@@ -52,7 +55,7 @@ import React, { useState, useEffect } from 'react';
         formData.append('video', file);
 
         try {
-          const response = await axios.post('/api/upload-video', formData);
+          const response = await axios.post(`${baseUrl}/api/upload-video`, formData);
           setVideos(prev => [`/data/videos/${response.data.filename}`, ...prev]);
         } catch (error) {
           console.error(error);
@@ -71,7 +74,7 @@ import React, { useState, useEffect } from 'react';
         setConsoleOutput([]);
         
      try {
-      await axios.post('/api/process-video', {
+      await axios.post(`${baseUrl}/api/process-video`, {
         voiceFile: selectedVoice.split('/').pop(),
         videoFile: selectedVideo.split('/').pop(),
         startFrame: startFrame
