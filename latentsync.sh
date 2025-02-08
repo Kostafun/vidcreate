@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts ":v:a:o:l:" opt; do
+while getopts ":v:a:o:l:s:" opt; do
   case $opt in
     v) video_path="$OPTARG";;
     a) audio_path="$OPTARG";;
