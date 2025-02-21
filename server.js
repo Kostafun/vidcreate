@@ -192,6 +192,50 @@ import express from 'express';
       res.json(files);
     });
 
+    app.post('/api/create-query-file', (req, res) => {
+      const filePath = path.join(__dirname, 'query.sh');
+      const fileContent = `#!/bin/bash
+    
+    cd /home/kostafun/Projects/LatentSync
+    source venv/bin/activate
+    `;
+    
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+        fs.writeFileSync(filePath, fileContent);
+        res.json({ success: true });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send('Error creating query.sh file');
+      }
+    });
+
+    app.post('/api/run-query-script', (req, res) => {
+      const scriptPath = path.join(__dirname, 'query.sh');
+
+      const query = spawn(scriptPath);
+      query.stdout.on('data', (data) => {
+        console.log(`Query stdout: ${data}`);
+      });
+      query.stderr.on('data', (data) => {
+        console.error(`Query stderr: ${data}`);
+      });
+      // // exec(`bash ${scriptPath}`, (error, stdout, stderr) => {
+      // //   if (error) {
+      // //     console.error(`Error executing script: ${error.message}`);
+      // //     return res.status(500).send('Error executing script');
+      // //   }
+      // //   if (stderr) {
+      // //     console.error(`Script stderr: ${stderr}`);
+      // //     return res.status(500).send('Script execution error');
+      // //   }
+      //   console.log(`Script stdout: ${stdout}`);
+      //   res.json({ success: true, output: stdout });
+      // });
+    });
+
     // const PORT = 3003;
     // const HOST = '192.168.68.205';
     // app.listen(PORT, HOST, () => {

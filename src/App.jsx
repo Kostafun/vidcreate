@@ -83,8 +83,27 @@ import React, { useState, useEffect } from 'react';
     } finally {
       setLoading(false);
     }
+  };
 
-      };
+  const handleCreateQueryFile = async () => {
+    try {
+      await axios.post(`${baseUrl}/api/create-query-file`);
+      alert('query.sh file created successfully');
+    } catch (error) {
+      console.error(error);
+      alert('Error creating query.sh file');
+    }
+  };
+  
+  const handleRunQueryScript = async () => {
+    try {
+      await axios.post(`${baseUrl}/api/run-query-script`);
+      alert('query.sh script executed successfully');
+    } catch (error) {
+      console.error(error);
+      alert('Error executing query.sh script');
+    }
+  };
 
       return (
         <div className="container">
@@ -156,10 +175,11 @@ import React, { useState, useEffect } from 'react';
               placeholder="Start Frame"
             />
             <button 
-              onClick={handleProcessVideo} 
+              // onClick={handleProcessVideo} 
               disabled={loading || !selectedVoice || !selectedVideo}
             >
-              {loading ? 'Processing...' : 'Create Final Video'}
+              {/* {loading ? 'Processing...' : 'Create Final Video'} */}
+            Add to query 
             </button>
           </div>
 
@@ -212,6 +232,10 @@ import React, { useState, useEffect } from 'react';
           </pre>
         </div>
       )}
+
+      <button onClick={handleRunQueryScript} style={{ marginTop: '20px' }}>
+        Run query
+      </button>
         </div>
       );
     }
