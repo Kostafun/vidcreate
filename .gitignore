@@ -11,6 +11,7 @@ node_modules
 *.m4a
 *.wma
 *.aiff
+*.mkv
 package-lock.json
 latentsync.log
 .vscode
