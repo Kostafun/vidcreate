@@ -14,16 +14,20 @@ import React, { useState, useEffect } from 'react';
       const [consoleOutput, setConsoleOutput] = useState([]);
       const [startFrame, setStartFrame] = useState(0);
       const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3003' : window.location.origin;
-      useEffect(() => {
-        // Load existing files
 
+      useEffect(() => {
         axios.get(`${baseUrl}/api/voices`).then(res => setVoices(res.data));
         axios.get(`${baseUrl}/api/videos`).then(res => setVideos(res.data));
         axios.get(`${baseUrl}/api/results`).then(res => setResults(res.data));
-        const ws = new WebSocket(`${baseUrl}/ws`);
+        
+        const ws = new WebSocket('ws://localhost:3002');
     
         ws.onmessage = (event) => {
-          setConsoleOutput(prev => [...prev, ...event.data.split('\n')]);
+          if (event.data === 'PROCESS_COMPLETE') {
+            setLoading(false);
+          } else {
+            setConsoleOutput(event.data.split('\n'));
+          }
         };
     
         return () => ws.close();
@@ -61,49 +65,50 @@ import React, { useState, useEffect } from 'react';
         }
       };
 
-      const handleProcessVideo = async () => {
+      const handleAddToQueue = async () => {
         if (!selectedVoice || !selectedVideo) {
           alert('Please select both a voice and a video');
           return;
         }
 
         setLoading(true);
-        setShowConsole(true);
-        setConsoleOutput([]);
+        // setShowConsole(true);
+        // setConsoleOutput([]);
         
-     try {
-      await axios.post(`${baseUrl}/api/process-video`, {
-        voiceFile: selectedVoice.split('/').pop(),
-        videoFile: selectedVideo.split('/').pop(),
-        startFrame: startFrame
-      });
-    } catch (error) {
-      console.error(error);
-      alert('Error processing video');
-    } finally {
-      setLoading(false);
-    }
-  };
+        try {
+          await axios.post(`${baseUrl}/api/add-to-queue`, {
+            voiceFile: selectedVoice.split('/').pop(),
+            videoFile: selectedVideo.split('/').pop(),
+            startFrame: startFrame
+          });
+        } catch (error) {
+          console.error(error);
+          alert('Error processing video');
+        } finally {
+          setLoading(false);
+        }
+      };
 
-  const handleCreateQueryFile = async () => {
-    try {
-      await axios.post(`${baseUrl}/api/create-query-file`);
-      alert('query.sh file created successfully');
-    } catch (error) {
-      console.error(error);
-      alert('Error creating query.sh file');
-    }
-  };
+      const handleCreateQueryFile = async () => {
+        try {
+          await axios.post(`${baseUrl}/api/create-query-file`);
+          alert('query.sh file created successfully');
+        } catch (error) {
+          console.error(error);
+          alert('Error creating query.sh file');
+        }
+      };
   
-  const handleRunQueryScript = async () => {
-    try {
-      await axios.post(`${baseUrl}/api/run-query-script`);
-      alert('query.sh script executed successfully');
-    } catch (error) {
-      console.error(error);
-      alert('Error executing query.sh script');
-    }
-  };
+      const handleRunQueryScript = async () => {
+        try {
+          setShowConsole(true);
+          setConsoleOutput(['Starting processing...']);
+          await axios.post(`${baseUrl}/api/run-query-script`);
+        } catch (error) {
+          console.error(error);
+          alert('Error executing query.sh script');
+        }
+      };
 
       return (
         <div className="container">
@@ -167,7 +172,16 @@ import React, { useState, useEffect } from 'react';
           </div>
 
           <div className="section">
-            <h2>Process Video</h2>
+            <h2>New query</h2>
+            <button   
+              onClick={handleCreateQueryFile}
+            >
+            Create query
+            </button>
+          </div>
+
+          <div className="section">
+            <h2>Add to queue</h2>
             <input
               type="number"
               value={startFrame}
@@ -175,11 +189,10 @@ import React, { useState, useEffect } from 'react';
               placeholder="Start Frame"
             />
             <button 
-              // onClick={handleProcessVideo} 
               disabled={loading || !selectedVoice || !selectedVideo}
+              onClick={handleAddToQueue}
             >
-              {/* {loading ? 'Processing...' : 'Create Final Video'} */}
-            Add to query 
+            Add to queue
             </button>
           </div>
 
@@ -194,48 +207,49 @@ import React, { useState, useEffect } from 'react';
               ))}
             </div>
           </div>
-          {showConsole && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          padding: '20px',
-          color: '#fff',
-          overflow: 'auto',
-          zIndex: 1000
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <h2>Processing Console</h2>
-            <button onClick={() => setShowConsole(false)}>Close</button>
-          </div>
-          <pre style={{
-            backgroundColor: '#000',
-            padding: '10px',
-            borderRadius: '4px',
-            minHeight: '200px',
-            maxHeight: '80vh',
-            overflow: 'auto'
-          }}>
-            {consoleOutput.map((line, i) => (
-              <div key={i} style={{ color: '#00ff00', marginBottom: '5px' }}>
-                {line}
-              </div>
-            ))}
-          </pre>
-        </div>
-      )}
 
-      <button onClick={handleRunQueryScript} style={{ marginTop: '20px' }}>
-        Run query
-      </button>
+          {showConsole && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              padding: '20px',
+              color: '#fff',
+              overflow: 'auto',
+              zIndex: 1000
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px'
+              }}>
+                <h2>Processing Console</h2>
+                <button onClick={() => setShowConsole(false)}>Close</button>
+              </div>
+              <pre style={{
+                backgroundColor: '#000',
+                padding: '10px',
+                borderRadius: '4px',
+                minHeight: '200px',
+                maxHeight: '80vh',
+                overflow: 'auto'
+              }}>
+                {consoleOutput.map((line, i) => (
+                  <div key={i} style={{ color: '#00ff00', marginBottom: '5px' }}>
+                    {line}
+                  </div>
+                ))}
+              </pre>
+            </div>
+          )}
+
+          <button onClick={handleRunQueryScript} style={{ marginTop: '20px' }}>
+            Run query
+          </button>
         </div>
       );
     }

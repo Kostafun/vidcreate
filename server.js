@@ -10,7 +10,6 @@ import express from 'express';
     import { fileURLToPath } from 'url';
     import { dirname } from 'path';
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    // import { hostname } from 'os';
     dotenv.config();
 
     const app = express();
@@ -18,18 +17,28 @@ import express from 'express';
     const voicesDir = 'data/voices';
     const videosDir = 'data/videos';
     const resultsDir = 'data/results';
-    
-    // Create directories if they don't exist
+    const logPath = path.join(__dirname,  'latentsync.log');
+    const scriptPath = path.join(__dirname, 'query.sh');
+
     [voicesDir, videosDir, resultsDir].forEach(dir => {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir);
     });
 
-    const wss = new WebSocketServer({ port: 3002, host: '0.0.0.0' });
+    const wss = new WebSocketServer({ port: 3002 });
     const clients = new Set();
 
-    wss.on('connection', (ws) => {
-      clients.add(ws);
-      ws.on('close', () => clients.delete(ws));
+  
+    wss.on("connection", (ws) => {
+      console.log("New client connected");
+
+      ws.on("message", (message) => {
+        console.log(`Received: ${message}`);
+        ws.send(`Server received: ${message}`);
+      });
+
+      ws.on("close", () => {
+        console.log("Client disconnected");
+      });
     });
 
     app.use(cors());
@@ -39,29 +48,6 @@ import express from 'express';
     app.use('/results', express.static(resultsDir));
 
     const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-    const VOICES = {
-      voice1: 'voice-id-1',
-      voice2: 'voice-id-2'
-    };
-
-    // Cleanup old files
-    const cleanupOldFiles = (dir, maxAge) => {
-      const files = fs.readdirSync(dir);
-      const now = Date.now();
-      
-      files.forEach(file => {
-        const filePath = path.join(dir, file);
-        const stat = fs.statSync(filePath);
-        if (now - stat.mtimeMs > maxAge) {
-          fs.unlinkSync(filePath);
-        }
-      });
-    };
-
-    // Cleanup old files every hour
-    // setInterval(() => {
-    //   cleanupOldFiles(voicesDir, 7 * 24 * 60 * 60 * 1000); // 1 week
-    // }, 60 * 60 * 1000);
 
     app.post('/api/generate-voice', async (req, res) => {
       try {
@@ -102,7 +88,7 @@ import express from 'express';
       }
     });
 
-    app.post('/api/process-video', async (req, res) => {
+    app.post('/api/add-to-queue', async (req, res) => {
       try {
         const { voiceFile, videoFile, startFrame } = req.body;
         
@@ -110,7 +96,7 @@ import express from 'express';
         const videoPath = path.join(__dirname, videosDir, videoFile);
         const outputFilename = `result_${Date.now()}.mp4`;
         const outputPath = path.join(__dirname, resultsDir, outputFilename);
-        const logPath = path.join(__dirname,  'latentsync.log');
+        
 
         const latentSync = spawn('./latentsync.sh', [
           '-a', voicePath,
@@ -119,7 +105,6 @@ import express from 'express';
           '-l', logPath,
           '-s', startFrame
         ]);
-        
         
         const sendOutputToClients = () => {
           const output = fs.readFileSync(logPath, 'utf-8');
@@ -133,7 +118,6 @@ import express from 'express';
 
         latentSync.stdout.on('data', (data) => {
           console.log(`LatentSync stdout: ${data}`);
-          // Send stdout data to all connected WebSocket clients
           clients.forEach(client => {
             if (client.readyState === wss.OPEN) {
               client.send(data.toString());
@@ -148,8 +132,6 @@ import express from 'express';
         latentSync.on('close', (code) => {
           console.log(`LatentSync process exited with code ${code}`);
           clearInterval(outputInterval);
-          sendOutputToClients();
-          // Send a message to indicate the process has finished
           clients.forEach(client => {
             if (client.readyState === wss.OPEN) {
               client.send('LatentSync process finished');
@@ -157,14 +139,6 @@ import express from 'express';
           });
           res.json({ success: true, filename: outputFilename });
         });
-
-        // Simulate long-running process
-        // setTimeout(() => {
-        //   // In real implementation, replace this with actual LatentSync command
-        //   fs.copyFileSync(videoPath, outputPath);
-        // }, 10000); // 10 seconds for demo
-
-        // res.json({ success: true, filename: outputFilename });
       } catch (error) {
         console.error(error);
         res.status(500).send('Error processing video');
@@ -193,7 +167,6 @@ import express from 'express';
     });
 
     app.post('/api/create-query-file', (req, res) => {
-      const filePath = path.join(__dirname, 'query.sh');
       const fileContent = `#!/bin/bash
     
     cd /home/kostafun/Projects/LatentSync
@@ -201,10 +174,10 @@ import express from 'express';
     `;
     
       try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
+        if (fs.existsSync(scriptPath)) {
+          fs.unlinkSync(scriptPath);
         }
-        fs.writeFileSync(filePath, fileContent);
+        fs.writeFileSync(scriptPath, fileContent);
         res.json({ success: true });
       } catch (error) {
         console.error(error);
@@ -213,38 +186,50 @@ import express from 'express';
     });
 
     app.post('/api/run-query-script', (req, res) => {
-      const scriptPath = path.join(__dirname, 'query.sh');
 
-      const query = spawn(scriptPath);
-      query.stdout.on('data', (data) => {
+
+      
+      // Clear previous output
+      if (fs.existsSync(logPath)) {
+        fs.unlinkSync(logPath);
+      }
+
+      const scriptProcess = spawn(scriptPath);
+      let outputInterval;
+
+      // Start polling output.txt
+      outputInterval = setInterval(() => {
+        if (fs.existsSync(logPath)) {
+          const content = fs.readFileSync(logPath, 'utf-8');
+          clients.forEach(client => {
+            if (client.readyState === wss.OPEN) {
+              client.send(content);
+            }
+          });
+        }
+      }, 1000);
+
+      scriptProcess.stdout.on('data', (data) => {
         console.log(`Query stdout: ${data}`);
       });
-      query.stderr.on('data', (data) => {
+
+      scriptProcess.stderr.on('data', (data) => {
         console.error(`Query stderr: ${data}`);
       });
-      // // exec(`bash ${scriptPath}`, (error, stdout, stderr) => {
-      // //   if (error) {
-      // //     console.error(`Error executing script: ${error.message}`);
-      // //     return res.status(500).send('Error executing script');
-      // //   }
-      // //   if (stderr) {
-      // //     console.error(`Script stderr: ${stderr}`);
-      // //     return res.status(500).send('Script execution error');
-      // //   }
-      //   console.log(`Script stdout: ${stdout}`);
-      //   res.json({ success: true, output: stdout });
-      // });
+
+      scriptProcess.on('close', (code) => {
+        console.log(`Query process exited with code ${code}`);
+        clearInterval(outputInterval);
+        clients.forEach(client => {
+          if (client.readyState === wss.OPEN) {
+            client.send('PROCESS_COMPLETE');
+          }
+        });
+        res.json({ success: true });
+      });
     });
 
-    // const PORT = 3003;
-    // const HOST = '192.168.68.205';
-    // app.listen(PORT, HOST, () => {
-    //   console.log(`Server running on ${HOST}:${PORT}`);
-    // });
-
-
     const PORT = 3003;
-    // const HOST = '192.168.68.205';
     app.listen(PORT, () => {
       console.log(`Server running on ${PORT}`);
     });
